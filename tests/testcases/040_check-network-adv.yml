@@ -53,7 +53,7 @@
       no_log: true
 
     - debug: var=agents.content|from_json
-      failed_when: not agents|success and not agents.content=='{}'
+      failed_when: not agents|success and not agents.content == '{}'
       run_once: true
 
     - name: Check netchecker status
@@ -65,14 +65,16 @@
       delay: "{{ agent_report_interval }}"
       no_log: true
       failed_when: false
-      when: not agents.content=='{}'
+      when:
+        - agents.content != '{}'
 
     - debug: var=result.content|from_json
       failed_when: not result|success
       run_once: true
-      when: not agents.content=='{}'
+      when: not agents.content == '{}'
       delegate_to: "{{groups['kube-master'][0]}}"
 
     - debug: msg="Cannot get reports from agents, consider as PASSING"
       run_once: true
-      when: agents.content=='{}'
+      when:
+        - agents.content == '{}'
