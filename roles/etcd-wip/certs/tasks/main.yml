@@ -1,0 +1,90 @@
+---
+
+# - name: "Set etcd vars"
+#   set_fact:
+#     all_etcd_hosts:  "{{groups['etcd-all']|unique|sort}}"
+#     cert_host: >-
+#       {%- if 'etcd-cert-manager' in groups and groups['etcd-cert-manager']|length > 0 -%}
+#           {{groups['etcd-cert-manager'][0]}}
+#       {%- else -%}
+#           {{groups['etcd'][0]}}
+#       {%- endif -%}
+#   tags:
+#     - facts
+
+# - include_tasks: download.yaml
+#   vars:
+#     download: "{{ item.value}}"
+#   loop: "{{ etcd_downloads | dict2items }}"
+#   when:
+#     - item.value.enabled
+#   tags:
+#     - etcd-download
+
+
+# - include_tasks: 0020_etcd-ca.yaml
+#   loop:
+#     - name: peers
+#       hosts: "{{groups['etcd']}}"
+#     - name: clients
+#       hosts: "{{groups['etcd-clients']}}"
+#   loop_control:
+#     loop_var: cert
+#   tags:
+#     - etcd-ca
+
+
+- include_tasks: 0030_etcd-certs.yaml
+  loop: "{{groups['etcd']}}"
+  loop_control:
+    loop_var: host
+  vars:
+    cert:
+      name: peers
+      hosts: "{{groups['etcd']}}"
+
+## GENERATE CA
+
+# - include_tasks: 0010_check_certs.yml
+#   tags:
+#     - facts
+
+# - include_tasks: "0020_gen_certs_script.yml"
+
+# - include_tasks: upd_ca_trust.yml
+
+# - name: "Gen_certs | Get etcd certificate serials"
+#   shell: "openssl x509 -in {{ etcd_cert_dir }}/node-{{ inventory_hostname }}.pem -noout -serial | cut -d= -f2"
+#   register: "etcd_client_cert_serial_result"
+#   changed_when: false
+#   when: inventory_hostname in groups['k8s-cluster']|union(groups['etcd'])|union(groups['calico-rr']|default([]))|unique|sort
+
+# - name: Set etcd_client_cert_serial
+#   set_fact:
+#     etcd_client_cert_serial: "{{ etcd_client_cert_serial_result.stdout }}"
+
+# - name: Copy serial to each clients
+#   copy:
+#     content: "{{etcd_client_cert_serial}}"
+#     dest: "{{etcd_data_dir/etcd-serial}}"
+
+
+# - name: Restart etcd if certs changed
+#   service:
+#     name: etcd
+#     state: restarted
+#     enabled: yes
+#   when: is_etcd_master and etcd_cluster_setup and etcd_secret_changed|default(false)
+
+# - name: Restart etcd-events if certs changed
+#   service:
+#     name: etcd-events
+#     state: restarted
+#     enabled: yes
+#   when: is_etcd_master and etcd_events_cluster_setup and etcd_secret_changed|default(false)
+
+# # After etcd cluster is assembled, make sure that
+# # initial state of the cluster is in `existing`
+# # state insted of `new`.
+# - include_tasks: refresh_config.yml
+#   when: is_etcd_master

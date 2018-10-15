@@ -1,0 +1,42 @@
+---
+
+- name: generate-certs config for *{{cert.name}}/{{host}}*
+  template:
+    src: "etcd-{{cert.name}}.json"
+    dest: "{{etcd_cert_dir}}/{{cert.name}}/{{host}}/etcd-{{cert.name}}.json"
+  vars:
+    cert_name: "{{host}}"
+  register: certconf
+  tags:
+    - etcd-certs-peers
+
+# - name: "Check certs | check if a cert exists for *{{cert.name}}/{{host}}*"
+#   stat:
+#     path: "{{ etcd_cert_dir }}/{{cert.name}}/{{ item }}"
+#   register: cacerts
+#   loop:
+#     - ca.pem
+#     - ca-key.pem
+#   tags:
+#     - etcd-certs-peers
+
+# - name: Generate CA and CAKEY for *{{cert.name}}/{{host}}*
+#   command: '{{bin_dir}}/cfssl gencert -initca "{{ etcd_cert_dir }}/{{cert.name}}/ca-csr.json"'
+#   register: ca
+#   args:
+#     chdir: "{{ etcd_cert_dir }}/{{cert.name}}"
+#   when:
+#     - caconf is changed or not (cacerts.results[0].stat.exists and cacerts.results[1].stat.exists)
+#   tags:
+#     - etcd-certs-peers
+
+# - name: JSON Generate CA and CAKEY for *{{cert.name}}/{{host}}*
+#   command: 'cfssljson -bare ca -'
+#   register: cagen
+#   args:
+#     chdir: "{{ etcd_cert_dir }}/{{cert.name}}"
+#     stdin: "{{ca.stdout | from_json |to_json}}"
+#   when:
+#     - caconf is changed or not (cacerts.results[0].stat.exists and cacerts.results[1].stat.exists)
+#   tags:
+#     - etcd-certs-peers

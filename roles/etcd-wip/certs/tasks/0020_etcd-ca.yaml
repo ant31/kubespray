@@ -1,0 +1,56 @@
+---
+- name: Gen_certs | create etcd *{{cert.name}}* certs dir
+  file:
+    path: "{{ etcd_cert_dir }}/{{cert.name}}/{{item}}"
+    group: "{{ etcd_cert_group }}"
+    state: directory
+    owner: "{{etcd_cert_user}}"
+    mode: 0700
+    recurse: yes
+  loop: "{{cert.hosts}}"
+  tags:
+    - etcd-ca
+
+- name: generate-ca config for *{{cert.name}}*
+  template:
+    src: "{{item}}"
+    dest: "{{etcd_cert_dir}}/{{cert.name}}/{{item}}"
+  loop:
+    - "ca-config.json"
+    - "ca-csr.json"
+  vars:
+    ca_name: "{{cert.name}}"
+  register: caconf
+  tags:
+    - etcd-ca
+
+- name: "Check certs | check if a CA and CAKey exists for *{{cert.name}}*"
+  stat:
+    path: "{{ etcd_cert_dir }}/{{cert.name}}/{{ item }}"
+  register: cacerts
+  loop:
+    - ca.pem
+    - ca-key.pem
+  tags:
+    - etcd-ca
+
+- name: Generate CA and CAKEY for *{{cert.name}}*
+  command: '{{bin_dir}}/cfssl gencert -initca "{{ etcd_cert_dir }}/{{cert.name}}/ca-csr.json"'
+  register: ca
+  args:
+    chdir: "{{ etcd_cert_dir }}/{{cert.name}}"
+  when:
+    - caconf is changed or not (cacerts.results[0].stat.exists and cacerts.results[1].stat.exists)
+  tags:
+    - etcd-ca
+
+- name: JSON Generate CA and CAKEY for *{{cert.name}}*
+  command: 'cfssljson -bare ca -'
+  register: cagen
+  args:
+    chdir: "{{ etcd_cert_dir }}/{{cert.name}}"
+    stdin: "{{ca.stdout | from_json |to_json}}"
+  when:
+    - caconf is changed or not (cacerts.results[0].stat.exists and cacerts.results[1].stat.exists)
+  tags:
+    - etcd-ca

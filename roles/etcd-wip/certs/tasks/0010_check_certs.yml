@@ -1,0 +1,80 @@
+---
+
+- name: "Check certs | check if a CA and CAKey exists"
+  stat:
+    path: "{{ etcd_cert_dir }}/{{ item }}"
+  register: cacert
+  loop:
+    - ca.pem
+    - ca-key.pem
+
+- name: "Check_certs | Set default value regenerate_all"
+  set_fact:
+    regenerate_all: "{{not (cacert.results[0].stat.exists and cacert.results[1].stat.exists)}}"
+    client_certs: >-
+      [
+      {% for host in groups['etcd-clients'] %}
+      "ca.pem",
+      "client-{{host}}-key.pem",
+      "client-{{host}}.pem",
+      {% endfor %}
+      ]
+    peer_certs: >-
+      [
+      {% for host in groups['etcd'] %}
+      "ca.pem",
+      "admin-{{ host }}-key.pem",
+      "admin-{{ host }}.pem",
+      "member-{{ host }}-key.pem",
+      "member-{{ host }}.pem"
+      {% endfor %}
+      ]
+
+- debug: msg="{{client_certs}}"
+- debug: msg="{{peer_certs}}"
+
+# - name: "Check certs | check if a cert already exists on the etcd-client"
+#   stat:
+#     path: "{{ etcd_cert_dir }}/{{ item }}"
+#   register: etcdcert_clients
+#   loop:
+#     - client-{{ item }}-key.pem
+#     - client-{{ item }}.pem
+#     groups['etcd-clients']
+#   when:
+#     - inventory_hostname in
+#     - not regenerate_all
+
+# - name: "Check certs | check if a cert already exists on the etcd-peers"
+#   stat:
+#     path: "{{ etcd_cert_dir }}/{{ item }}"
+#   register: etcdcert_peers
+#   loop:
+#     - ca.pem
+#     - admin-{{ inventory_hostname }}-key.pem
+#     - admin-{{ inventory_hostname }}.pem
+#     - member-{{ inventory_hostname }}-key.pem
+#     - member-{{ inventory_hostname }}.pem
+#   when:
+#     - inventory_hostname in groups['etcd']
+#     - not regenerate_all
+
+# - debug: msg="{{etcdcert_peers}} {{regenerate_all}} {{inventory_hostname}}{{groups['etcd']}} {{inventory_hostname in groups['etcd']}}"
+
+# - name: Check_certs | Set 'gen_certs' to true for clients
+#   set_fact:
+#     gen_certs: true
+#   when:
+#     - item is not skipped
+#     - regenerate_all or item.stat.exists
+#     - inventory_hostname in groups['etcd-clients']
+#   loop: "{{etcdcert_clients.results}}"
+
+# - name: Check_certs | Set 'gen_certs' to true for masters/etcd
+#   set_fact:
+#     gen_certs: true
+#   when:
+#     - item is not skipped
+#     - regenerate_all or item.stat.exists
+#     - inventory_hostname in groups['etcd']
+#   loop: "{{etcdcert_peers.results}}"
