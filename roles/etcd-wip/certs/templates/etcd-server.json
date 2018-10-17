@@ -3,6 +3,7 @@
     "hosts": [
         {% if apiserver_loadbalancer_domain_name is defined %}
         "{{ apiserver_loadbalancer_domain_name }}",
+        {% endif %}
         {% for etcd_alt_name in etcd_cert_alt_names %}
         "{{ etcd_alt_name }}",
         {% endfor %}

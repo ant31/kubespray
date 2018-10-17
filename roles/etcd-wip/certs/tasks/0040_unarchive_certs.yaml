@@ -1,0 +1,17 @@
+---
+- name: create cert_directory server
+  file:
+    path: "{{etcd_cert_dir}}"
+    state: directory
+
+- name: install server_certs
+  shell: echo "{{item.content}}" | base64 -d > {{etcd_cert_dir}}/{{host}}.tar.bz2
+  changed_when: false
+  loop: "{{etcd_cert_tarballs_b64.results}}"
+
+
+- name: unpack certs
+  unarchive:
+    remote_src: true
+    src: "{{etcd_cert_dir}}/{{host}}.tar.bz2"
+    dest: "{{etcd_cert_dir}}"

@@ -1,90 +1,77 @@
 ---
 
-# - name: "Set etcd vars"
-#   set_fact:
-#     all_etcd_hosts:  "{{groups['etcd-all']|unique|sort}}"
-#     cert_host: >-
-#       {%- if 'etcd-cert-manager' in groups and groups['etcd-cert-manager']|length > 0 -%}
-#           {{groups['etcd-cert-manager'][0]}}
-#       {%- else -%}
-#           {{groups['etcd'][0]}}
-#       {%- endif -%}
-#   tags:
-#     - facts
+- name: Gen_certs | create etcd {{inventory_hostname}} certs dir
+  file:
+    path: "{{ etcd_cert_dir }}/{{item}}"
+    group: "{{ etcd_cert_group }}"
+    state: directory
+    owner: "{{etcd_cert_user}}"
+    mode: 0700
+  loop: "{{etcd_hosts|default(groups['etcd-all']) | unique + ['archives']}} "
+  tags:
+    - etcd-certs
 
-# - include_tasks: download.yaml
-#   vars:
-#     download: "{{ item.value}}"
-#   loop: "{{ etcd_downloads | dict2items }}"
-#   when:
-#     - item.value.enabled
-#   tags:
-#     - etcd-download
+- include_tasks: 0020_etcd-ca.yaml
+  loop:
+    - name: peer
+    - name: client
+  loop_control:
+    loop_var: cert
+  when:
+    - not etcd_client_only | default(false) | bool
+  tags:
+    - etcd-ca
 
+- name: Copy server etcd-ca
+  copy:
+    remote_src: true
+    src: "{{ etcd_cert_dir }}/{{item.1}}-ca.pem"
+    dest: "{{ etcd_cert_dir }}/{{item.0}}"
+  loop: "{{etcd_hosts|default(groups['etcd-all'] | unique)|product(['peer', 'client']) | list}}"
+  when:
+    - (item.1 == "peer" and item.0 in groups['etcd']) or (item.1 == "client" and item.0 in groups['etcd-clients'])
+  tags:
+    - etcd-certs
 
-# - include_tasks: 0020_etcd-ca.yaml
-#   loop:
-#     - name: peers
-#       hosts: "{{groups['etcd']}}"
-#     - name: clients
-#       hosts: "{{groups['etcd-clients']}}"
-#   loop_control:
-#     loop_var: cert
-#   tags:
-#     - etcd-ca
-
+- name: configure the certs to generate (client, server or peer)
+  set_fact:
+    _etcd_cert_hosts: >-
+         [{% for item in etcd_hosts|default(groups['etcd-all'] | unique)|product(['peer', 'client', 'server']) | list %}
+         {% if (item.1 in ["peer", "server"] and item.0 in groups['etcd']) or  (item.1 == "client" and item.0 in groups['etcd-clients'])%}
+         {% if loop.last %}
+           {{item}}
+         {% else %}
+          {{item}},
+         {% endif %}
+         {% endif %}
+         {% endfor %}
+         ]
 
 - include_tasks: 0030_etcd-certs.yaml
-  loop: "{{groups['etcd']}}"
+  loop: "{{_etcd_cert_hosts}}"
   loop_control:
-    loop_var: host
+    loop_var: host_item
   vars:
     cert:
-      name: peers
-      hosts: "{{groups['etcd']}}"
-
-## GENERATE CA
-
-# - include_tasks: 0010_check_certs.yml
-#   tags:
-#     - facts
-
-# - include_tasks: "0020_gen_certs_script.yml"
-
-# - include_tasks: upd_ca_trust.yml
-
-# - name: "Gen_certs | Get etcd certificate serials"
-#   shell: "openssl x509 -in {{ etcd_cert_dir }}/node-{{ inventory_hostname }}.pem -noout -serial | cut -d= -f2"
-#   register: "etcd_client_cert_serial_result"
-#   changed_when: false
-#   when: inventory_hostname in groups['k8s-cluster']|union(groups['etcd'])|union(groups['calico-rr']|default([]))|unique|sort
-
-# - name: Set etcd_client_cert_serial
-#   set_fact:
-#     etcd_client_cert_serial: "{{ etcd_client_cert_serial_result.stdout }}"
-
-# - name: Copy serial to each clients
-#   copy:
-#     content: "{{etcd_client_cert_serial}}"
-#     dest: "{{etcd_data_dir/etcd-serial}}"
+      host: "{{host_item.0}}"
+      profile: "{{host_item.1}}"
+    etcd_cakey: "{{etcd_ca_profiles[cert.profile]}}-ca-key.pem"
+    etcd_capem: "{{etcd_ca_profiles[cert.profile]}}-ca.pem"
 
 
-# - name: Restart etcd if certs changed
-#   service:
-#     name: etcd
-#     state: restarted
-#     enabled: yes
-#   when: is_etcd_master and etcd_cluster_setup and etcd_secret_changed|default(false)
+- name: Prepare certs tarball
+  archive:
+    dest: "{{etcd_cert_dir}}/archives/client-{{host}}.tar.bz2"
+    format: bz2
+    path:
+      - "{{ etcd_cert_dir }}/{{host}}"
+  loop: "{{etcd_hosts|default(groups['etcd-all'] | unique)}}"
+  loop_control:
+    loop_var: host
+  register: etcd_cert_tarballs
 
-# - name: Restart etcd-events if certs changed
-#   service:
-#     name: etcd-events
-#     state: restarted
-#     enabled: yes
-#   when: is_etcd_master and etcd_events_cluster_setup and etcd_secret_changed|default(false)
-
-# # After etcd cluster is assembled, make sure that
-# # initial state of the cluster is in `existing`
-# # state insted of `new`.
-# - include_tasks: refresh_config.yml
-#   when: is_etcd_master
+- name: fetch peers certs
+  slurp:
+    src: "{{item.dest}}"
+  loop: "{{etcd_cert_tarballs.results}}"
+  register: etcd_cert_tarballs_b64
