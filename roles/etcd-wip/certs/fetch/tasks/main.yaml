@@ -50,16 +50,9 @@
 
 - name: "Gen_certs | Get etcd certificate serials"
   command: "openssl x509 -in {{ etcd_cert_dir }}/{{inventory_hostname}}/{{ inventory_hostname }}-client.pem -noout -serial"
-  register: "etcd_client_cert_serial"
-  changed_when: false
-
-- name: Extract serial
-  command: "cut -d= -f2"
-  args:
-    stdin: "{{etcd_client_cert_serial.stdout}}"
   register: "etcd_client_cert_serial_result"
   changed_when: false
 
 - name: Set etcd_client_cert_serial
   set_fact:
-    etcd_client_cert_serial: "{{ etcd_client_cert_serial_result.stdout }}"
+    etcd_client_cert_serial: "{{ etcd_client_cert_serial_result.stdout.split('=')[1] }}"

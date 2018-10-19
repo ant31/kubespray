@@ -1,5 +1,4 @@
 ---
-
 - name: Gen_certs | create etcd {{inventory_hostname}} certs dir
   file:
     path: "{{ etcd_cert_dir }}/{{item}}"
@@ -11,17 +10,6 @@
   tags:
     - etcd-certs
 
-- include_tasks: 0020_etcd-ca.yaml
-  loop:
-    - name: peer
-    - name: client
-  loop_control:
-    loop_var: cert
-  when:
-    - not etcd_client_only | default(false) | bool
-  tags:
-    - etcd-ca
-
 - name: Copy server etcd-ca
   copy:
     remote_src: true
@@ -32,6 +20,13 @@
     - (item.1 == "peer" and item.0 in groups['etcd']) or (item.1 == "client" and item.0 in groups['etcd-clients'])
   tags:
     - etcd-certs
+  ignore_errors: True
+  register: copyca
+
+- name: fail the play if the previous command did not succeed
+  fail:
+    msg: "Are the CA files generated? run the role etcd/certs/ca, see playbooks/etcd.yaml "
+  when: copyca is failed
 
 - name: configure the certs to generate (client, server or peer)
   set_fact:
@@ -47,7 +42,7 @@
          {% endfor %}
          ]
 
-- include_tasks: 0030_etcd-certs.yaml
+- include_tasks: 0020_etcd-certs.yaml
   loop: "{{_etcd_cert_hosts}}"
   loop_control:
     loop_var: host_item
@@ -57,7 +52,6 @@
       profile: "{{host_item.1}}"
     etcd_cakey: "{{etcd_ca_profiles[cert.profile]}}-ca-key.pem"
     etcd_capem: "{{etcd_ca_profiles[cert.profile]}}-ca.pem"
-
 
 - name: Prepare certs tarball
   archive:

@@ -1,6 +1,6 @@
 ---
 dependencies:
-  - name: etcd/certs
+  - name: etcd/certs/generate
     delegate_to: "{{hostvars[groups['etcd-cert-managers'][0]].ansible_ssh_host}}"
     vars:
       etcd_hosts: ["{{inventory_hostname}}"]
