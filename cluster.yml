@@ -23,6 +23,15 @@
 
 - hosts: k8s-cluster:etcd
   gather_facts: False
+
+- import_playbook: playbooks/bastion.yaml
+- import_playbook: playbooks/initialize-hosts.yaml
+- import_playbook: playbooks/etcd.yaml
+  vars:
+    etcd_force_create: true
+    etcd_action: 'create'
+
+- hosts: k8s-cluster
   any_errors_fatal: "{{ any_errors_fatal | default(true) }}"
   roles:
     - { role: kubespray-defaults }
@@ -67,6 +76,9 @@
   any_errors_fatal: "{{ any_errors_fatal | default(true) }}"
   roles:
     - { role: kubespray-defaults }
+    - { role: etcd3/facts }
+    - { role: download, tags: download, when: "not skip_downloads" }
+    - { role: kubespray-defaults}
     - { role: kubernetes/node, tags: node }
 
 - hosts: kube-master
@@ -116,10 +128,9 @@
     - { role: kubernetes-apps/external_provisioner, tags: external-provisioner }
 
 - hosts: kube-master
-  gather_facts: False
   any_errors_fatal: "{{ any_errors_fatal | default(true) }}"
   roles:
-    - { role: kubespray-defaults }
+    - { role: kubespray-defaults}
     - { role: kubernetes-apps, tags: apps }
 
 - hosts: k8s-cluster

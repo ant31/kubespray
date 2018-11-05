@@ -58,3 +58,14 @@ calico-rr
 
 [etcd-clients:children]
 kube-master
+
+[cluster-all:children]
+k8s-cluster
+etcd-all
+calico-rr
+
+[etcd-cert-managers]
+node1
+
+[container-hosts:children]
+k8s-cluster
