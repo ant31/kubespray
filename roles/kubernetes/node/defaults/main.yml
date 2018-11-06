@@ -55,6 +55,8 @@ loadbalancer_apiserver_keepalive_timeout: 5m
 #   - extensions/v1beta1/networkpolicies=true
 #   - extensions/v1beta1/podsecuritypolicies=true
 
+etcd_config_dir: /etc/etcd
+
 # A port range to reserve for services with NodePort visibility.
 # Inclusive at both ends of the range.
 kube_apiserver_node_port_range: "30000-32767"
