@@ -10,9 +10,8 @@ vm_memory: 2048Mi
 branch_name_sane: "{{ branch | regex_replace('/', '-') }}"
 
 # Request/Limit allocation settings
-
-cpu_allocation_ratio: 0.5
-memory_allocation_ratio: 1
+cpu_allocation_ratio: 0.25
+memory_allocation_ratio: 0.5
 
 # Default path for inventory
 inventory_path: "/tmp/{{ test_name }}/inventory"

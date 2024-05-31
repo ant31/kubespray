@@ -6,6 +6,7 @@ metadata:
   namespace: "{{ test_name }}"
   labels:
     kubevirt.io/os: {{ cloud_image }}
+    kubespray.com/ci.template-path: "tests/cloud_playbooks/roles/packet-ci/templates/vm.yml.j2"
 spec:
   running: true
   template:
